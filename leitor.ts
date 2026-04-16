@@ -1,122 +1,122 @@
 import { parse } from "https://deno.land/std@0.200.0/csv/parse.ts";
-import { normalizarStatus } from "./normalizer.ts";
+import { normalizeStatus } from "./normalizer.ts";
 
-// --- CAMADAS DE LÓGICA ---
-function calcularMediana(v: number[]) {
+// --- LOGIC LAYERS ---
+function calculateMedian(v: number[]) {
   if (v.length === 0) return 0;
   const s = [...v].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 !== 0 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function analisarL1(valor: number, hist: number[]) {
-  if (hist.length < 3) return { status: "COLETANDO", score: 0 };
-  const med = calcularMediana(hist);
-  const desvios = hist.map(v => Math.abs(v - med));
-  const mad = calcularMediana(desvios) || 1;
-  const score = Math.abs(valor - med) / mad;
-  return { status: score > 1.5 ? "ANOMALIA" : "ESTÁVEL", score };
+function analyzeL1(value: number, history: number[]) {
+  if (history.length < 3) return { status: "COLLECTING", score: 0 };
+  const median = calculateMedian(history);
+  const deviations = history.map(v => Math.abs(v - median));
+  const mad = calculateMedian(deviations) || 1;
+  const score = Math.abs(value - median) / mad;
+  return { status: score > 1.5 ? "ANOMALY" : "STABLE", score };
 }
 
-async function executarMotorMirrorLife() {
+async function runDecisionEngine() {
   try {
     console.clear();
     console.log("======================================================");
-    console.log("📡 SISTEMA THE EYE: MONITORAMENTO PROATIVO");
+    console.log("📡 THE EYE SYSTEM: PROACTIVE MONITORING");
     console.log("======================================================\n");
 
-    // 1. CARREGAR BASES
-    const usuariosRaw = await Deno.readTextFile("./users.json");
-    const listaUsuarios = JSON.parse(usuariosRaw);
-    const mapaNomes = new Map(listaUsuarios.map((u: any) => [String(u.user_id).trim(), `${u.first_name} ${u.last_name}`]));
+    // 1. LOAD DATA SOURCES
+    const usersRaw = await Deno.readTextFile("./users.json");
+    const userList = JSON.parse(usersRaw);
+    const nameMap = new Map(userList.map((u: any) => [String(u.user_id).trim(), `${u.first_name} ${u.last_name}`]));
 
-    const locaisRaw = await Deno.readTextFile("./locations.json");
-    const listaLocais = JSON.parse(locaisRaw);
-    const mapaLocais = new Map();
-    const alertasPorCidadao = new Map<string, number>();
-    listaLocais.forEach((l: any) => mapaLocais.set(String(l.user_id).trim(), l.city));
+    const locationsRaw = await Deno.readTextFile("./locations.json");
+    const locationList = JSON.parse(locationsRaw);
+    const locationMap = new Map();
+    const alertsByCitizen = new Map<string, number>();
+    locationList.forEach((l: any) => locationMap.set(String(l.user_id).trim(), l.city));
 
-    const statusTexto = await Deno.readTextFile("./Status.csv");
-    const linhasStatus = parse(statusTexto, {
+    const statusText = await Deno.readTextFile("./status.csv");
+    const statusRows = parse(statusText, {
       skipFirstRow: true,
       columns: ["EventID", "CitizenID", "EventType", "PhysicalActivityIndex", "SleepQualityIndex", "EnvironmentalExposureLevel", "Timestamp"]
     }) as any[];
 
-    // Injeção de Stress (Craig)
-    linhasStatus.push({ CitizenID: "WNACROYX", SleepQualityIndex: "8", PhysicalActivityIndex: "92", EnvironmentalExposureLevel: "88" });
+    // Stress injection (Craig)
+    statusRows.push({ CitizenID: "WNACROYX", SleepQualityIndex: "8", PhysicalActivityIndex: "92", EnvironmentalExposureLevel: "88" });
 
-    const historicos = new Map<string, number[]>();
-    const encaminhadosIA: string[] = [];
-    
-    // Contadores de Filtragem
-    let totalEntradas = 0;
-    let l0Passaram = 0;
-    let l1Anomalias = 0;
+    const histories = new Map<string, number[]>();
+    const escalatedToAI: string[] = [];
 
-    for (const linha of linhasStatus) {
-      totalEntradas++;
-      const dado = normalizarStatus(linha);
-      const idLimpo = String(dado.citizenId).trim();
-      
-      // CAMADA L0: Integridade básica
-      if (!idLimpo || idLimpo === "DESCONHECIDO") continue;
-      l0Passaram++;
+    // Filter counters
+    let totalEntries = 0;
+    let l0Passed = 0;
+    let l1Anomalies = 0;
 
-      const nomeCidadao = mapaNomes.get(idLimpo) || idLimpo;
-      const cidadeAtual = mapaLocais.get(idLimpo) || "Desconhecido";
-      const meuHist = historicos.get(idLimpo) || [];
-      const resL1 = analisarL1(dado.sleepIndex, meuHist);
+    for (const row of statusRows) {
+      totalEntries++;
+      const data = normalizeStatus(row);
+      const cleanId = String(data.citizenId).trim();
 
-      // CAMADA L2: Decisão de Encaminhamento
-      const riscoL2 = resL1.score > 3.0 && (dado.activityIndex > 60 || dado.envExposure > 70);
+      // LAYER L0: Basic integrity
+      if (!cleanId || cleanId === "UNKNOWN") continue;
+      l0Passed++;
 
-      // SAÍDA EM TEMPO REAL (LIMPA)
-      if (meuHist.length >= 3) {
-        if (resL1.status === "ANOMALIA") {
-          l1Anomalias++;
-          const prefixo = riscoL2 ? "🚨 [CRÍTICO]" : "🟡 [DESVIO] ";
-          console.log(`${prefixo} ${nomeCidadao.padEnd(20)} | Score L1: ${resL1.score.toFixed(2)}`);
+      const citizenName = nameMap.get(cleanId) || cleanId;
+      const currentCity = locationMap.get(cleanId) || "Unknown";
+      const history = histories.get(cleanId) || [];
+      const l1Result = analyzeL1(data.sleepIndex, history);
+
+      // LAYER L2: Escalation decision
+      const l2Risk = l1Result.score > 3.0 && (data.activityIndex > 60 || data.envExposure > 70);
+
+      // REAL-TIME OUTPUT
+      if (history.length >= 3) {
+        if (l1Result.status === "ANOMALY") {
+          l1Anomalies++;
+          const prefix = l2Risk ? "🚨 [CRITICAL]" : "🟡 [DEVIATION]";
+          console.log(`${prefix} ${citizenName.padEnd(20)} | L1 Score: ${l1Result.score.toFixed(2)}`);
         }
       }
 
-      if (riscoL2) {
-        // Contabiliza quantas vezes esse cidadão falhou na L2
-        const totalAlertas = (alertasPorCidadao.get(nomeCidadao) || 0) + 1;
-        alertasPorCidadao.set(nomeCidadao, totalAlertas);
-        
-        // Guarda para o bloco da IA com o detalhe da cidade
-        encaminhadosIA.push(`${nomeCidadao} (${cidadeAtual})`);
+      if (l2Risk) {
+        // Track how many times this citizen triggered L2
+        const totalAlerts = (alertsByCitizen.get(citizenName) || 0) + 1;
+        alertsByCitizen.set(citizenName, totalAlerts);
+
+        // Store for the AI block with city detail
+        escalatedToAI.push(`${citizenName} (${currentCity})`);
       }
 
-      meuHist.push(dado.sleepIndex);
-      historicos.set(idLimpo, meuHist);
+      history.push(data.sleepIndex);
+      histories.set(cleanId, history);
     }
 
-    // --- BLOCO FINAL: ENCAMINHAMENTO (AJUSTADO) ---
+    // --- FINAL BLOCK: ESCALATION ---
     console.log("\n------------------------------------------------------");
-    console.log("🤖 ENCAMINHADOS PARA IA (L3/L4):");
-    if (alertasPorCidadao.size > 0) {
-      alertasPorCidadao.forEach((qtd, nome) => {
-        console.log(`   👉 ${nome.padEnd(20)} | Status: ${qtd} eventos críticos detectados`);
+    console.log("🤖 ESCALATED TO AI (L3/L4):");
+    if (alertsByCitizen.size > 0) {
+      alertsByCitizen.forEach((count, name) => {
+        console.log(`   👉 ${name.padEnd(20)} | Status: ${count} critical events detected`);
       });
     } else {
-      console.log("   ✅ Nenhum cidadão requer intervenção.");
+      console.log("   ✅ No citizens require intervention.");
     }
 
-    // --- BLOCO FINAL: MÉTRICAS ---
+    // --- FINAL BLOCK: METRICS ---
     console.log("------------------------------------------------------");
-    console.log("📊 RESUMO DE FILTRAGEM POR CAMADA:");
-    console.log(`   L0 (Integridade):   ${l0Passaram} de ${totalEntradas} registros aprovados.`);
-    console.log(`   L1 (Estatística):   ${l1Anomalias} anomalias detectadas.`);
-    console.log(`   L2 (Semântica):     ${encaminhadosIA.length} casos promovidos à IA.`);
-    
-    const economia = (100 - (encaminhadosIA.length / totalEntradas * 100)).toFixed(1);
-    console.log(`\n✅ EFICIÊNCIA DO FILTRO: ${economia}% de economia de processamento.`);
+    console.log("📊 FILTER SUMMARY BY LAYER:");
+    console.log(`   L0 (Integrity):   ${l0Passed} of ${totalEntries} records approved.`);
+    console.log(`   L1 (Statistical): ${l1Anomalies} anomalies detected.`);
+    console.log(`   L2 (Semantic):    ${escalatedToAI.length} cases promoted to AI.`);
+
+    const savings = (100 - (escalatedToAI.length / totalEntries * 100)).toFixed(1);
+    console.log(`\n✅ FILTER EFFICIENCY: ${savings}% processing savings.`);
     console.log("======================================================\n");
 
-  } catch (erro) {
-    console.error("❌ ERRO:", erro.message);
+  } catch (error) {
+    console.error("❌ ERROR:", (error as Error).message);
   }
 }
 
-executarMotorMirrorLife();
+runDecisionEngine();

@@ -1,0 +1,5 @@
+.env
+track-your-submission/**/.env
+output/
+data/
+deno.lock
