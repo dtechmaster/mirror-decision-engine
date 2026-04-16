@@ -50,7 +50,10 @@ export function extractFeatures(
   nlpBoost = 0,
 ): ITransactionFeatures {
   // Phishing contact: did the citizen receive a phishing message before this transaction?
-  const phishingContact = phishingContactScore(tx.timestamp, baseline.phishingTimeline);
+  // Only relevant for transfers — the scam pattern is phishing → bank transfer, not phishing → e-commerce
+  const rawPhishing = phishingContactScore(tx.timestamp, baseline.phishingTimeline);
+  const isTransfer = tx.transaction_type === "transfer";
+  const phishingContact = isTransfer ? rawPhishing : rawPhishing * 0.15;
 
   // Amount MAD score
   const rawMad = baseline.amounts.length >= 3
@@ -145,16 +148,31 @@ export function calibrateThreshold(scores: ITransactionScore[]): number {
 //#endregion
 
 //#region Score Transaction
+// Minimum amount to be considered fraud: tiny purchases are never the scam pattern
+const MIN_FRAUD_AMOUNT = 30;
+
 export function scoreTransaction(
   tx: ITransaction,
   baseline: ICitizenBaseline,
   nlpBoost = 0,
 ): ITransactionScore {
   const features = extractFeatures(tx, baseline, nlpBoost);
+  let score = compositeScore(features);
+
+  // Amount floor: transactions below minimum fraud threshold get crushed
+  if (tx.amount < MIN_FRAUD_AMOUNT) {
+    score *= 0.08;
+  }
+
+  // Withdrawal and in-person payments are almost never the phishing-scam type
+  if (tx.transaction_type === "withdrawal") {
+    score *= 0.25;
+  }
+
   return {
     transactionId: tx.transaction_id,
     citizenId: baseline.biotag,
-    compositeScore: compositeScore(features),
+    compositeScore: score,
     features,
     isSuspicious: false,
   };

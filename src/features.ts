@@ -146,7 +146,7 @@ export function buildPhishingTimeline(
     const dateMatch = s.sms.match(/Date:\s*(\d{4}-\d{2}-\d{2})/);
     if (!dateMatch) continue;
     const score = smsPhishingScore(s.sms);
-    if (score > 0.1) timeline.push({ timestamp: new Date(dateMatch[1]), score, source: "sms" });
+    if (score >= 0.5) timeline.push({ timestamp: new Date(dateMatch[1]), score, source: "sms" });
   }
 
   for (const m of mails) {
@@ -157,7 +157,7 @@ export function buildPhishingTimeline(
     const dt = new Date(dateMatch[1].trim());
     if (isNaN(dt.getTime())) continue;
     const score = emailPhishingScore(m.mail);
-    if (score > 0.1) timeline.push({ timestamp: dt, score, source: "mail" });
+    if (score >= 0.5) timeline.push({ timestamp: dt, score, source: "mail" });
   }
 
   return timeline;
@@ -166,7 +166,7 @@ export function buildPhishingTimeline(
 export function phishingContactScore(
   txTimestamp: string,
   timeline: IPhishingEvent[],
-  windowDays = 14,
+  windowDays = 4,
 ): number {
   const txTime = new Date(txTimestamp).getTime();
   const windowMs = windowDays * 24 * 60 * 60 * 1000;
